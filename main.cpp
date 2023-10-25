@@ -91,28 +91,37 @@ class Hotkeys
     std::vector<UINT> registered, not_registered;
     wchar_t lastError[MAX_PATH] = L"Unable to register hotkeys:\n";
 
+    inline UINT id(UINT key) const { return modifiers << 16 | key; }
+    inline UINT key(UINT id) const { return id & 0xFF; }
+
 public:
     inline static char toChar(UINT key) { return key - 48; }
 
-    Hotkeys(HWND hwnd) : hwnd(hwnd) {
+    UINT modifiers = 0;
+
+    Hotkeys(HWND hwnd, UINT modifiers = MOD_WIN) : hwnd(hwnd), modifiers(modifiers) {
+
+        printf("register hotkeys with modifiers %d\n", modifiers); fflush(stdout);
+
         for (UINT key = VK_NUMPAD0; key <= VK_NUMPAD9; ++key)
         {
-            if (RegisterHotKey(hwnd, key, MOD_WIN, key))
-                registered.push_back(key);
+            UINT id = this->id(key);
+            if (RegisterHotKey(hwnd, id, modifiers, key))
+                registered.push_back(id);
             else
-                not_registered.push_back(key);
+                not_registered.push_back(id);
         }
 
         if (!not_registered.empty())
         {
-
             wchar_t name[MAX_PATH];
             BYTE keybstate[256] = {};
             GetKeyboardState(keybstate);
-            for (UINT key: not_registered)
+            for (UINT id: not_registered)
             {
+                UINT key = this->key(id);
                 if (ToUnicode(key, MapVirtualKeyExW(key, MAPVK_VK_TO_VSC, NULL), keybstate, name, sizeof(name) / sizeof(wchar_t), 0))
-                    wsprintfW(lastError + wcslen(lastError), L"Win+NUM%s ", name);
+                    wsprintfW(lastError + wcslen(lastError), L"NUM%s ", name);
                 else
                     wsprintfW(lastError + wcslen(lastError), L"0x%02X ", key);
             }
@@ -121,8 +130,10 @@ public:
     }
 
     ~Hotkeys() {
-        for (UINT key: registered)
-            UnregisterHotKey(hwnd, key);
+        for (UINT id: registered)
+            if (!UnregisterHotKey(hwnd, id))
+                printf("Unable to unregister hotkey NUM%c: %s\n", toChar(key(id)), strerror(GetLastError()));
+        fflush(stdout);
     }
 
     bool empty() const { return registered.empty(); }
@@ -285,7 +296,46 @@ private:
 std::vector<Display> Display::all;
 std::wstring Display::lastError;
 
+class Config
+{
+public:
+    DWORD modifiers = MOD_WIN;
+
+    bool read() {
+        HKEY hKey = NULL;
+        LONG res = RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\sonnayasomnambula\\quicktile-win",
+                                0, KEY_READ, &hKey);
+        if (res != ERROR_SUCCESS)
+            return false;
+        DWORD size = sizeof(DWORD);
+        res = RegQueryValueExW(hKey, L"modifiers", 0, NULL, (LPBYTE)&modifiers, &size);
+        RegCloseKey(hKey);
+        return res == ERROR_SUCCESS;
+    }
+
+    bool write() const {
+        HKEY hKey = NULL;
+        LONG res = RegOpenKeyEx(HKEY_CURRENT_USER, L"Software\\sonnayasomnambula\\quicktile-win",
+                                0, KEY_SET_VALUE, &hKey);
+        if (res == ERROR_FILE_NOT_FOUND)
+            res = RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\sonnayasomnambula\\quicktile-win",
+                                  0, NULL, 0, KEY_ALL_ACCESS, NULL, &hKey, NULL);
+        if (res == ERROR_SUCCESS)
+            res = RegSetValueExW(hKey, L"modifiers", 0, REG_DWORD,
+                                 (const BYTE*)&modifiers, sizeof(modifiers));
+        RegCloseKey(hKey);
+        return res == ERROR_SUCCESS;
+    }
+
+    Config() { read(); }
+   ~Config() { write(); }
+};
+
 LRESULT CALLBACK DialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+inline WINBOOL EnableDlgButton(HWND hwndDlg, int nIDDlgItem, bool enable = true) {
+    return EnableWindow(GetDlgItem(hwndDlg, nIDDlgItem), enable);
+}
 
 struct Window
 {
@@ -299,20 +349,26 @@ struct Window
         if (!Display::init(hwnd))
             return false;
 
+        HICON icon = NULL;
+        LoadIconMetric(instance, MAKEINTRESOURCE(IDI_ICON), LIM_SMALL, &icon);
+        SendMessageW(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)icon);
+
+        Config config;
+
+        CheckDlgButton(hwnd, CK_WIN, config.modifiers & MOD_WIN ? BST_CHECKED : BST_UNCHECKED);
+        CheckDlgButton(hwnd, CK_CTRL, config.modifiers & MOD_CONTROL ? BST_CHECKED : BST_UNCHECKED);
+        CheckDlgButton(hwnd, CK_SHIFT, config.modifiers & MOD_SHIFT ? BST_CHECKED : BST_UNCHECKED);
+        CheckDlgButton(hwnd, CK_ALT, config.modifiers & MOD_ALT ? BST_CHECKED : BST_UNCHECKED);
+        EnableDlgButton(hwnd, BTN_APPLY, false);
+
         SetTimer(hwnd, 0, 0, NULL);
 
         notifyIcon.reset(new NotifyIcon(instance, hwnd));
-        hotkeys.reset(new Hotkeys(hwnd));
+        hotkeys.reset(new Hotkeys(hwnd, config.modifiers));
         return !hotkeys->empty();
     }
 
-    void quit(const std::wstring& message)
-    {
-        MessageBoxW(hwnd, message.c_str(), WINDOW_TITLE, MB_OK | MB_ICONERROR);
-        PostQuitMessage(EXIT_FAILURE);
-    }
-
-    LRESULT showContextMenu(POINT pt)
+    void showContextMenu(POINT pt)
     {
         if (HMENU hMenu = LoadMenuW(instance, MAKEINTRESOURCEW(IDR_POPUP_MENU)))
         {
@@ -323,7 +379,30 @@ struct Window
             }
             DestroyMenu(hMenu);
         }
-        return EXIT_SUCCESS;
+    }
+
+    UINT modifiers() const
+    {
+        return (IsDlgButtonChecked(hwnd, CK_WIN)   ? MOD_WIN     : 0) |
+               (IsDlgButtonChecked(hwnd, CK_ALT)   ? MOD_ALT     : 0) |
+               (IsDlgButtonChecked(hwnd, CK_SHIFT) ? MOD_SHIFT   : 0) |
+               (IsDlgButtonChecked(hwnd, CK_CTRL)  ? MOD_CONTROL : 0);
+    }
+
+    bool applyModifiers(UINT modifiers)
+    {
+        UINT old = hotkeys ? hotkeys->modifiers : CK_WIN;
+        hotkeys.reset(new Hotkeys(hwnd, modifiers));
+        if (hotkeys->empty())
+        {
+            printf("restore modifiers to %d\n", old); fflush(stdout);            
+            hotkeys.reset(new Hotkeys(hwnd, old));
+            return false;
+        }
+
+        Config conf;
+        conf.modifiers = modifiers;
+        return true;
     }
 
 } window;
@@ -381,27 +460,56 @@ LRESULT CALLBACK DialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return TRUE;
 
     case WMAPP_NOTIFYCALLBACK:
-        //printf("WMAPP_NOTIFYCALLBACK(0x%04LX, 0x%04LX)\n", wParam, lParam); fflush(stdout);
-        return LOWORD(lParam) == WM_CONTEXTMENU ? window.showContextMenu({ LOWORD(wParam), HIWORD(wParam) }) : TRUE;
-
-    case WM_COMMAND:
-        switch (LOWORD(wParam))
-        {
-        case IDM_OPTIONS:
-            ShowWindow(hwnd, SW_NORMAL);
-            return TRUE;
-        case IDM_EXIT:
-            PostQuitMessage(EXIT_SUCCESS);
-            return TRUE;
-        case IDOK:
-            ShowWindow(hwnd, SW_HIDE);
+        if (LOWORD(lParam) == WM_CONTEXTMENU) {
+            POINT pt = { LOWORD(wParam), HIWORD(wParam) };
+            window.showContextMenu(pt);
             return TRUE;
         }
-
-        printf("Unknown command %llu\n", wParam); fflush(stdout);
         return FALSE;
 
+    case WM_COMMAND:
+        if ((HWND)lParam)
+        {
+            // control
+            switch (LOWORD(wParam))
+            {
+            case CK_WIN:
+            case CK_ALT:
+            case CK_SHIFT:
+            case CK_CTRL:
+                EnableDlgButton(hwnd, BTN_APPLY,
+                                window.hotkeys && window.hotkeys->modifiers != window.modifiers());
+                return TRUE;
+            case BTN_APPLY:
+                if (window.applyModifiers(window.modifiers()))
+                    EnableDlgButton(hwnd, BTN_APPLY, false);
+                return TRUE;
+            default:
+                printf("unknown control %d\n", LOWORD(wParam));
+                fflush(stdout);
+                return FALSE;
+            }
+        }
+        else
+        {
+            // menu
+            switch (LOWORD(wParam))
+            {
+            case MENUITEM_OPTIONS:
+                ShowWindow(hwnd, SW_NORMAL);
+                return TRUE;
+            case MENUITEM_EXIT:
+                PostQuitMessage(EXIT_SUCCESS);
+                return TRUE;
+            default:
+                printf("unknown menu %d\n", LOWORD(wParam));
+                fflush(stdout);
+                return FALSE;
+            }
+        }
+
     case WM_HOTKEY:
+        printf("WM_HOTKEY(0x%04X)\n", HIWORD(lParam)); fflush(stdout);
         MoveCurrentWindow(HIWORD(lParam));
         return TRUE;
 

@@ -18,8 +18,8 @@ IDR_POPUP_MENU MENU
 {
     POPUP ""
     {
-        MENUITEM "&Options...", IDM_OPTIONS
-        MENUITEM "E&xit", IDM_EXIT
+        MENUITEM "&Options...", MENUITEM_OPTIONS
+        MENUITEM "E&xit", MENUITEM_EXIT
     }
 }
 
@@ -29,14 +29,19 @@ IDR_POPUP_MENU MENU
 // Dialog resources
 //
 LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
-IDD_DIALOG1 DIALOG 0, 0, 182, 63
+IDD_DIALOG1 DIALOG 0, 0, 202, 76
 STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | DS_SHELLFONT | WS_CAPTION | WS_VISIBLE | WS_POPUP | WS_SYSMENU
 CAPTION "Quicktile"
 FONT 8, "Ms Shell Dlg"
 {
-    DEFPUSHBUTTON   "OK", IDOK, 65, 42, 50, 14, 0, WS_EX_LEFT
-    LTEXT           "Use Win+NUM1 .. Win+NUM9 to move a window", 0, 7, 9, 158, 9, SS_LEFT, WS_EX_LEFT
-    LTEXT           "Use Win+NUM0 to send a window to another display", 0, 7, 23, 168, 9, SS_LEFT, WS_EX_LEFT
+    AUTOCHECKBOX    "Win", CK_WIN, 16, 54, 29, 8, BS_NOTIFY, WS_EX_LEFT, 8
+    AUTOCHECKBOX    "Ctrl", CK_CTRL, 48, 54, 26, 8, 0, WS_EX_LEFT, 2
+    PUSHBUTTON      "Apply", BTN_APPLY, 137, 51, 48, 14, 0, WS_EX_LEFT
+    GROUPBOX        "Modifiers", 0, 9, 42, 182, 28, 0, WS_EX_LEFT
+    AUTOCHECKBOX    "Alt", CK_ALT, 80, 54, 24, 8, 0, WS_EX_LEFT, 1
+    AUTOCHECKBOX    "Shift", CK_SHIFT, 107, 54, 30, 8, 0, WS_EX_LEFT, 4
+    LTEXT           "Use NUM1 .. NUM9 to move a window", 0, 7, 9, 141, 9, SS_LEFT, WS_EX_LEFT
+    LTEXT           "Use NUM0 to send a window to another display", 0, 7, 23, 151, 9, SS_LEFT, WS_EX_LEFT
 }
 
 

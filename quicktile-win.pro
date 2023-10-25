@@ -16,3 +16,6 @@ DEFINES += \
     "_WIN32_IE=0x0900" \
 
 LIBS += -lcomctl32
+
+HEADERS += \
+    resource.h
