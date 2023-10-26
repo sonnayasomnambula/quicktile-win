@@ -34,12 +34,12 @@ STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | DS_SHELLFONT | WS_CAPTION | WS_VIS
 CAPTION "Quicktile"
 FONT 8, "Ms Shell Dlg"
 {
-    AUTOCHECKBOX    "Win", CK_WIN, 16, 54, 29, 8, BS_NOTIFY, WS_EX_LEFT, 8
-    AUTOCHECKBOX    "Ctrl", CK_CTRL, 48, 54, 26, 8, 0, WS_EX_LEFT, 2
-    PUSHBUTTON      "Apply", BTN_APPLY, 137, 51, 48, 14, 0, WS_EX_LEFT
     GROUPBOX        "Modifiers", 0, 9, 42, 182, 28, 0, WS_EX_LEFT
-    AUTOCHECKBOX    "Alt", CK_ALT, 80, 54, 24, 8, 0, WS_EX_LEFT, 1
-    AUTOCHECKBOX    "Shift", CK_SHIFT, 107, 54, 30, 8, 0, WS_EX_LEFT, 4
+    AUTOCHECKBOX    "Win", CK_WIN, 16, 54, 29, 8, 0, WS_EX_LEFT
+    AUTOCHECKBOX    "Ctrl", CK_CTRL, 48, 54, 26, 8, 0, WS_EX_LEFT
+    AUTOCHECKBOX    "Alt", CK_ALT, 80, 54, 24, 8, 0, WS_EX_LEFT
+    AUTOCHECKBOX    "Shift", CK_SHIFT, 107, 54, 30, 8, 0, WS_EX_LEFT
+    PUSHBUTTON      "Apply", BTN_APPLY, 137, 51, 48, 14, 0, WS_EX_LEFT
     LTEXT           "Use NUM1 .. NUM9 to move a window", 0, 7, 9, 141, 9, SS_LEFT, WS_EX_LEFT
     LTEXT           "Use NUM0 to send a window to another display", 0, 7, 23, 151, 9, SS_LEFT, WS_EX_LEFT
 }

@@ -247,13 +247,15 @@ struct Display : Rect
 
             LONG width  = std::min(rect.width(), nextDisplay.width());
             LONG height = std::min(rect.height(), nextDisplay.height());
-            LONG dx = std::min(rect.left - currentDisplay.left, nextDisplay.width() - width);
-            LONG dy = std::min(rect.top - currentDisplay.top, nextDisplay.height() - height);
+            LONG dx_l = std::min(std::max(0l, rect.left - currentDisplay.left), nextDisplay.width() - width);
+            LONG dx_r = std::min(std::max(0l, currentDisplay.right - rect.right), nextDisplay.width() - width);
+            LONG dy_t = std::min(std::max(0l, rect.top - currentDisplay.top), nextDisplay.height() - height);
+            LONG dy_b = std::min(std::max(0l, currentDisplay.bottom - rect.bottom), nextDisplay.height() - height);
 
             Rect r;
-            r.left = nextDisplay.left + dx;
+            r.left = dx_l < dx_r ? nextDisplay.left + dx_l : nextDisplay.right - width - dx_r;
             r.right = r.left + width;
-            r.top = nextDisplay.top + dy;
+            r.top = dy_t < dy_b ? nextDisplay.top + dy_t : nextDisplay.bottom - height - dy_b;
             r.bottom = r.top + height;
             return r;
         }
@@ -345,7 +347,8 @@ struct Window
     std::unique_ptr<NotifyIcon> notifyIcon;
     std::unique_ptr<Hotkeys> hotkeys;
 
-    bool init() {
+    bool init()
+    {
         if (!Display::init(hwnd))
             return false;
 
@@ -366,6 +369,12 @@ struct Window
         notifyIcon.reset(new NotifyIcon(instance, hwnd));
         hotkeys.reset(new Hotkeys(hwnd, config.modifiers));
         return !hotkeys->empty();
+    }
+
+    void cleanup()
+    {
+        notifyIcon.reset();
+        hotkeys.reset();
     }
 
     void showContextMenu(POINT pt)
@@ -424,7 +433,7 @@ bool MoveCurrentWindow(UINT hotkey)
     if (!GetWindowRect(topWindow, &rect))
         return failedSilent("GetWindowRect failed\n");
 
-    printf("NUM%c\n", (Hotkeys::toChar(hotkey)) & 0xFF);
+    printf("\nNUM%c\n", (Hotkeys::toChar(hotkey)) & 0xFF);
 
     printf("Current geometry: %ld:%ld %ldx%ld\n", rect.left, rect.top, rect.width(), rect.height()); fflush(stdout);
 
@@ -456,6 +465,7 @@ LRESULT CALLBACK DialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return TRUE;
 
     case WM_DESTROY:
+        window.cleanup();
         PostQuitMessage(EXIT_SUCCESS);
         return TRUE;
 
@@ -464,14 +474,17 @@ LRESULT CALLBACK DialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             POINT pt = { LOWORD(wParam), HIWORD(wParam) };
             window.showContextMenu(pt);
             return TRUE;
+        } else if (LOWORD(lParam) == WM_LBUTTONDBLCLK) {
+            ShowWindow(hwnd, SW_NORMAL);
+            return TRUE;
         }
         return FALSE;
 
     case WM_COMMAND:
         if ((HWND)lParam)
         {
-            // control
-            switch (LOWORD(wParam))
+            const WORD controlID = LOWORD(wParam);
+            switch (controlID)
             {
             case CK_WIN:
             case CK_ALT:
@@ -499,7 +512,10 @@ LRESULT CALLBACK DialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 ShowWindow(hwnd, SW_NORMAL);
                 return TRUE;
             case MENUITEM_EXIT:
-                PostQuitMessage(EXIT_SUCCESS);
+                DestroyWindow(window.hwnd);
+                return TRUE;
+            case IDCANCEL: // Esc
+                SendMessageW(window.hwnd, WM_CLOSE, 0, 0);
                 return TRUE;
             default:
                 printf("unknown menu %d\n", LOWORD(wParam));
@@ -509,7 +525,6 @@ LRESULT CALLBACK DialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
 
     case WM_HOTKEY:
-        printf("WM_HOTKEY(0x%04X)\n", HIWORD(lParam)); fflush(stdout);
         MoveCurrentWindow(HIWORD(lParam));
         return TRUE;
 
