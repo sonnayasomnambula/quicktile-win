@@ -429,19 +429,40 @@ bool MoveCurrentWindow(UINT hotkey)
     if (!topWindow)
         return failedSilent("GetForegroundWindow failed\n");
 
-    Rect rect;
-    if (!GetWindowRect(topWindow, &rect))
-        return failedSilent("GetWindowRect failed\n");
+    WINDOWPLACEMENT placement = {};
+    placement.length = sizeof(placement);
+    if (!GetWindowPlacement(topWindow, &placement))
+        return failedSilent("GetWindowPlacement failed\n");
 
     printf("\nNUM%c\n", (Hotkeys::toChar(hotkey)) & 0xFF);
 
+    Rect rect = placement.rcNormalPosition;
     printf("Current geometry: %ld:%ld %ldx%ld\n", rect.left, rect.top, rect.width(), rect.height()); fflush(stdout);
 
     rect = Display::nextRect(topWindow, hotkey, rect);
 
     printf("Next geometry: %ld:%ld %ldx%ld\n", rect.left, rect.top, rect.width(), rect.height()); fflush(stdout);
 
-    MoveWindow(topWindow, rect.left, rect.top, rect.width(), rect.height(), TRUE);
+    placement.rcNormalPosition = rect;
+    placement.showCmd = SW_SHOWNORMAL;
+
+    for (const Display& display: Display::all)
+        if (rect == display)
+            placement.showCmd = SW_MAXIMIZE;
+
+    if (placement.showCmd == SW_MAXIMIZE && hotkey == VK_NUMPAD0)
+    {
+        // one does not simply move maximized window
+        placement.showCmd = SW_SHOWNORMAL;
+        SetWindowPlacement(topWindow, &placement);
+        placement.showCmd = SW_MAXIMIZE;
+        SetWindowPlacement(topWindow, &placement);
+    }
+    else
+    {
+        SetWindowPlacement(topWindow, &placement);
+    }
+
     return true;
 }
 
