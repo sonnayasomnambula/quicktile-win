@@ -411,7 +411,11 @@ LRESULT CALLBACK DialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         MoveCurrentWindow(HIWORD(lParam));
         return TRUE;
 
+    case WM_SETTINGCHANGE:
     case WM_DISPLAYCHANGE:
+        if (uMsg == WM_SETTINGCHANGE && wParam != SPI_SETWORKAREA)
+            break;
+
         if (!Display::init())
         {
             MessageBoxW(hwnd, Display::lastError.c_str(), WINDOW_TITLE, MB_OK | MB_ICONERROR);
