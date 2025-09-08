@@ -94,11 +94,11 @@ class Config
 {
 public:
     DWORD modifiers = MOD_WIN;
+    static constexpr wchar_t CONFIG_PATH[] = L"Software\\sonnayasomnambula\\quicktile-win";
 
     bool read() {
         HKEY hKey = NULL;
-        LONG res = RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\sonnayasomnambula\\quicktile-win",
-                                0, KEY_READ, &hKey);
+        LONG res = RegOpenKeyExW(HKEY_CURRENT_USER, CONFIG_PATH, 0, KEY_READ, &hKey);
         if (res != ERROR_SUCCESS)
             return false;
         DWORD size = sizeof(DWORD);
@@ -109,14 +109,11 @@ public:
 
     bool write() const {
         HKEY hKey = NULL;
-        LONG res = RegOpenKeyEx(HKEY_CURRENT_USER, L"Software\\sonnayasomnambula\\quicktile-win",
-                                0, KEY_SET_VALUE, &hKey);
+        LONG res = RegOpenKeyEx(HKEY_CURRENT_USER, CONFIG_PATH, 0, KEY_SET_VALUE, &hKey);
         if (res == ERROR_FILE_NOT_FOUND)
-            res = RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\sonnayasomnambula\\quicktile-win",
-                                  0, NULL, 0, KEY_ALL_ACCESS, NULL, &hKey, NULL);
+            res = RegCreateKeyExW(HKEY_CURRENT_USER, CONFIG_PATH, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &hKey, NULL);
         if (res == ERROR_SUCCESS)
-            res = RegSetValueExW(hKey, L"modifiers", 0, REG_DWORD,
-                                 (const BYTE*)&modifiers, sizeof(modifiers));
+            res = RegSetValueExW(hKey, L"modifiers", 0, REG_DWORD, (const BYTE*)&modifiers, sizeof(modifiers));
         RegCloseKey(hKey);
         return res == ERROR_SUCCESS;
     }
@@ -199,7 +196,7 @@ struct Window
         hotkeys.reset(new Hotkeys(hwnd, modifiers));
         if (hotkeys->empty())
         {
-            printf("restore modifiers to %d\n", old); fflush(stdout);            
+            printf("restore modifiers to %d\n", old); fflush(stdout);
             hotkeys.reset(new Hotkeys(hwnd, old));
             return false;
         }
